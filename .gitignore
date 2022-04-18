@@ -1,0 +1,11 @@
+/.qt_for_python
+/build
+/Build.py
+/images
+/images.qrc
+/qrc2py.py
+/sanalfutbol.xlsx
+/seleniumtest.py
+/Settings.json
+/ui
+/__init__.py
