@@ -50,7 +50,6 @@ class ChromeDriver:
     def login(self):
         self.browser.get(f'https://{self.url}.com')
         is_killed = self._kill.wait(0.075)
-        print(is_killed)
         if is_killed:
             sys.exit()
         while True:
@@ -91,7 +90,6 @@ class ChromeDriver:
         return elementExist
 
     def bot(self):
-        print("başladı.")
         self.browser = webdriver.Chrome("chromedriver.exe", chrome_options=self.browserProfile, service=self.chrome_service)
         is_killed = self._kill.wait(0.025)
         if is_killed:
@@ -141,7 +139,6 @@ class ChromeDriver:
         self.browser.quit()
 
     def checkGet(self):
-        print("checkGet")
         permission = False
         self.browser.get(f'https://{self.url}.com/sanalfutbol.php')
         is_killed = self._kill.wait(3)
@@ -200,7 +197,7 @@ class ChromeDriver:
                 try:
                     haftabutton = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[3]/div/ul/li[{hafta}]")
                     haftabutton.click()
-                    is_killed = self._kill.wait(1.35)
+                    is_killed = self._kill.wait(1.5)
                     break
                 except NoSuchElementException:
                     continue
@@ -213,7 +210,7 @@ class ChromeDriver:
                 try:
                     haftabutton = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[3]/div/ul/li[{j}]")
                     haftabutton.click()
-                    is_killed = self._kill.wait(1.35)
+                    is_killed = self._kill.wait(1.5)
                     break
                 except NoSuchElementException:
                     continue
@@ -234,7 +231,7 @@ class ChromeDriver:
 
             for i in range(1, len(macListesi)+1):
                 self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/div/a[1]").click()
-                is_killed = self._kill.wait(0.8)
+                is_killed = self._kill.wait(1)
                 if is_killed:
                     sys.exit()
                 mac_ismi = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[1]").text
