@@ -138,10 +138,9 @@ class VirtualFootball(QMainWindow):
 
     def Stop(self):
         self.timerCheckErrors.stop()
-        try:
+        self.timerCheckKeyboard.stop()
+        if self.Driver.alive():
             self.Driver.stop()
-        except:
-            pass
         
     def closeEvent(self, event):
         if self.AboutMePage.isVisible():
