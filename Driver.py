@@ -1,4 +1,5 @@
 from threading import Thread, Lock, Event
+from time import sleep, time
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException, NoAlertPresentException
@@ -40,7 +41,7 @@ class ChromeDriver:
         self.chrome_service = ChromeService('chromedriver')
         self.chrome_service.creationflags = CREATE_NO_WINDOW
 
-        schedule.every(2).minutes.do(self.bot)
+        schedule.every(30).seconds.do(self.bot)
 
     def resetSelfs(self):
         self.lock.acquire()
@@ -144,18 +145,34 @@ class ChromeDriver:
         is_killed = self._kill.wait(3)
         if is_killed:
             sys.exit()
+        
         while True:
             is_killed = self._kill.wait(0.05)
             if is_killed:
                 sys.exit()
             try:
-                hafta = self.browser.find_element_by_class_name("onhafta").text
-                if hafta == "1":
-                    permission = self.get()
+                self.browser.switch_to.frame(self.browser.find_element_by_tag_name("iframe"))
+                hafta = self.browser.find_element_by_xpath("/html/body/div[1]/div[2]/div[2]").text.split(' ')[1]
                 break
-            except NoSuchElementException:
-                continue
+            except:
+                pass
         
+        if hafta == "30":
+            while True:
+                is_killed = self._kill.wait(0.05)
+                if is_killed:
+                    sys.exit()
+                try:
+                    period = self.browser.find_element_by_xpath("/html/body/div[1]/div[5]/div/div[3]").text
+                    break
+                except:
+                    pass
+            self.browser.switch_to.default_content()
+            if period == "Devre Arası" or \
+               period == "İkinci Yarı" or \
+               period == "Maç haftası sonu" or \
+               period == "Maç sonu":
+                permission = self.get()
         return permission
 
     def get(self):
@@ -172,7 +189,6 @@ class ChromeDriver:
             try:
                 self.browser.switch_to.frame(self.browser.find_element_by_tag_name("iframe"))
                 sezon = self.browser.find_element_by_xpath("html/body/div[1]/div[2]/div[1]").text.split(' ')[1]
-                gamestatus = self.browser.find_element_by_xpath("/html/body/div[1]/div[5]/div/div[3]").text
                 self.browser.switch_to.default_content()
                 break
             except NoSuchElementException:
@@ -188,9 +204,6 @@ class ChromeDriver:
             except NoSuchElementException:
                 continue
 
-        if gamestatus == "İkinci Yarı":
-            hafta = str(int(hafta) + 1)
-
         for j in range(int(hafta), 31):
             while True:
                 is_killed = self._kill.wait(0.05)
@@ -199,12 +212,12 @@ class ChromeDriver:
                 try:
                     haftabutton = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[3]/div/ul/li[{j}]")
                     haftabutton.click()
-                    is_killed = self._kill.wait(0.75)
+                    is_killed = self._kill.wait(0.25)
                     if is_killed:
                         sys.exit()
                     break
-                except NoSuchElementException:
-                    continue
+                except:
+                    pass
 
             macListesi = []
             sayac = 0
@@ -217,17 +230,42 @@ class ChromeDriver:
                 try:
                     if sayac > 3 and j == 1:
                         self.browser.refresh()
+                        is_killed = self._kill.wait(2)
+                        if is_killed:
+                            sys.exit()
+                        sayac = 0
                     macListesi = self.browser.find_elements_by_xpath("/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li")
-                    is_killed = self._kill.wait(0.1)
+                    is_killed = self._kill.wait(0.05)
                     if is_killed:
                         sys.exit()
                     if len(macListesi) == 8:
-                        is_killed = self._kill.wait(0.5)
+                        is_killed = self._kill.wait(0.1)
                         if is_killed:
                             sys.exit()
                         break
                 except:
                     continue
+
+            while True:
+                try:
+                    btn = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[8]/div[1]/div/a[1]")
+                    btn.click()
+                    is_killed = self._kill.wait(0.75)
+                    if is_killed:
+                        sys.exit()
+                    break
+                except:
+                    pass
+
+            for i in range(1, len(macListesi)):
+                while True:
+                    try:
+                        mac = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]")
+                        self.browser.execute_script("arguments[0].style.display = 'block';", mac)
+                        sleep(0.01)
+                        break
+                    except:
+                        pass
 
             for i in range(1, len(macListesi)+1):
                 ai = 0
@@ -235,70 +273,78 @@ class ChromeDriver:
                     ai = ai + 1
                     print(f"ai: {ai}")
                     try:
-                        detailButton = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/div/a[1]")
-                        detailButton.click()
-
-                        is_killed = self._kill.wait(0.50)
-                        if is_killed:
-                            sys.exit()
-
-                        mac_ismi = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[1]").text
-                        ev_sahibi = mac_ismi.split(" ")[1]
-                        deplasman = mac_ismi.split(" ")[-1]
-                        ms1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[2]/div[1]/a/span").text
-                        ms0 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[2]/div[2]/a/span").text
-                        ms2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[2]/div[3]/a/span").text
-                        iy1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[1]/a/span").text
-                        iy0 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[2]/a/span").text
-                        iy2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[3]/a/span").text
+                        mac_ismi = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[1]")
+                        ms1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[2]/div[1]/a/span")
+                        ms0 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[2]/div[2]/a/span")
+                        ms2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[2]/div[3]/a/span")
+                        iy1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[1]/a/span")
+                        iy0 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[2]/a/span")
+                        iy2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[3]/a/span")
+                        altust1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[1]/span")
+                        birust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[2]/div/a/span")
+                        biralt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[2]/li[2]/div/a/span")
+                        ikiust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[1]/li[2]/div/a/span")
+                        ikialt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[2]/li[2]/div/a/span")
+                        ucust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[1]/li[2]/div/a/span")
+                        ucalt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[2]/li[2]/div/a/span")
+                        ilk1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[1]/div[2]/div/a/span")
+                        ilk2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[2]/div[2]/div/a/span")
+                        ilk0 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[3]/div[2]/div/a/span")
                         
-                        altust1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[1]/span").text
-                        if altust1 == "0.5":
-                            altust05ust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[2]/div/a/span").text
-                            altust05alt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[2]/li[2]/div/a/span").text
-                            altust15ust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[1]/li[2]/div/a/span").text
-                            altust15alt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[2]/li[2]/div/a/span").text
-                            altust25ust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[1]/li[2]/div/a/span").text
-                            altust25alt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[2]/li[2]/div/a/span").text
-                            altust35ust = ""
-                            altust35alt = ""
-                            altust45ust = ""
-                            altust45alt = ""
-                            
-                        if altust1 == "1.5":
-                            altust05ust = ""
-                            altust05alt = ""
-                            altust15ust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[2]/div/a/span").text
-                            altust15alt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[2]/li[2]/div/a/span").text
-                            altust25ust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[1]/li[2]/div/a/span").text
-                            altust25alt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[2]/li[2]/div/a/span").text
-                            altust35ust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[1]/li[2]/div/a/span").text
-                            altust35alt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[2]/li[2]/div/a/span").text
-                            altust45ust = ""
-                            altust45alt = ""
-                            
-                        if altust1 == "2.5":
-                            altust05ust = ""
-                            altust05alt = ""
-                            altust15ust = ""
-                            altust15alt = ""
-                            altust25ust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[2]/div/a/span").text
-                            altust25alt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[2]/li[2]/div/a/span").text
-                            altust35ust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[1]/li[2]/div/a/span").text
-                            altust35alt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[2]/li[2]/div/a/span").text
-                            altust45ust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[1]/li[2]/div/a/span").text
-                            altust45alt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[2]/li[2]/div/a/span").text
-
-                        ilk1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[1]/div[2]/div/a/span").text
-                        ilk2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[2]/div[2]/div/a/span").text
-                        ilk0 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[3]/div[2]/div/a/span").text
                         break
-                    except NoSuchElementException:
-                        detailButton2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/div/a[2]")
-                        detailButton2.click()
-                        is_killed = self._kill.wait(0.5)
-                        if is_killed:
-                            sys.exit()
+                    except NoSuchElementException as e:
+                        print("Hata", e)
+                
+                ev_sahibi = mac_ismi.text.split(" ")[1]
+                deplasman = mac_ismi.text.split(" ")[-1]
+                
+                ms1 = ms1.text
+                ms0 = ms0.text
+                ms2 = ms2.text
+                iy1 = iy1.text
+                iy0 = iy0.text
+                iy2 = iy2.text
+
+                if altust1.text == "0.5":
+                    altust05ust = birust.text
+                    altust05alt = biralt.text
+                    altust15ust = ikiust.text
+                    altust15alt = ikialt.text
+                    altust25ust = ucust.text
+                    altust25alt = ucalt.text
+                    altust35ust = ""
+                    altust35alt = ""
+                    altust45ust = ""
+                    altust45alt = ""
+                    
+                if altust1.text == "1.5":
+                    altust05ust = ""
+                    altust05alt = ""
+                    altust15ust = birust.text
+                    altust15alt = biralt.text
+                    altust25ust = ikiust.text
+                    altust25alt = ikialt.text
+                    altust35ust = ucust.text
+                    altust35alt = ucalt.text
+                    altust45ust = ""
+                    altust45alt = ""
+                    
+                if altust1.text == "2.5":
+                    altust05ust = ""
+                    altust05alt = ""
+                    altust15ust = ""
+                    altust15alt = ""
+                    altust25ust = birust.text
+                    altust25alt = biralt.text
+                    altust35ust = ikiust.text
+                    altust35alt = ikialt.text
+                    altust45ust = ucust.text
+                    altust45alt = ucalt.text
+                
+                ilk0 = ilk0.text
+                ilk1 = ilk1.text
+                ilk2 = ilk2.text
+
                 self.data.append([f"{i}.Maç",j,sezon,ev_sahibi,deplasman,ms1,ms0,ms2,iy1,iy0,iy2,altust05ust,altust05alt,altust15ust,altust15alt,altust25ust,altust25alt,altust35ust,altust35alt,altust45ust,altust45alt,ilk1,ilk2,ilk0])
 
         return True
@@ -322,7 +368,9 @@ class ChromeDriver:
     def run(self):
         while not self.stopped:
             if self.firstStart:
+                sa = time()
                 self.bot()
+                print(time()-sa)
                 self.firstStart = False
             else:
                 schedule.run_pending()
