@@ -8,6 +8,9 @@ from subprocess import CREATE_NO_WINDOW
 import schedule, os, sys
 import pandas as pd
 from win10toast import ToastNotifier
+from bs4 import BeautifulSoup as BS
+from lxml import etree
+import requests
 
 class ChromeDriver:
 
@@ -118,23 +121,27 @@ class ChromeDriver:
                 df = pd.DataFrame(self.data, columns=["Lig","Hafta","Sezon","Ev Sahibi","Misafir","1","X","2","IY 1","IY 0","IY 2","0,5 ALT","0,5 ALT","1,5 ÜST","1,5 ALT","2,5 ÜST","2,5 ALT","3,5 ÜST","3,5 ALT","4,5 ÜST","4,5 ALT","İLK-1","İLK-2","İLK HİÇBİRİ"])
                 print(df)
                 desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
-                try: 
-                    df.to_excel(f"{desktop}/sanalfutbol.xlsx", sheet_name='SANAL', encoding='utf-8', index=False)
-                    self.toast.show_toast(
-                        "Virtual Football",
-                        "Excel dosyası desktop'a kopyalandı.",
-                        duration = 20,
-                        icon_path = "images/favicon.ico",
-                        threaded = True,
-                    )
-                except PermissionError:
-                    self.toast.show_toast(
-                        "Virtual Football",
-                        "Excel dosyası açtık durumda olduğu için işlem gerçekleştirilemedi.",
-                        duration = 20,
-                        icon_path = "images/favicon.ico",
-                        threaded = True,
-                    )
+                while True:
+                    try: 
+                        df.to_excel(f"{desktop}/sanalfutbol.xlsx", sheet_name='SANAL', encoding='utf-8', index=False)
+                        self.toast.show_toast(
+                            "Virtual Football",
+                            "Excel dosyası desktop'a kopyalandı.",
+                            duration = 45,
+                            icon_path = "images/favicon.ico",
+                            threaded = True,
+                        )
+                        break
+                    except PermissionError:
+                        self.toast.show_toast(
+                            "Virtual Football",
+                            "Excel dosyası açtık durumda olduğu için işlem gerçekleştirilemedi.\nLütfen excel dosyasını kapatınız.",
+                            duration = 30,
+                            icon_path = "images/favicon.ico",
+                            threaded = True,
+                        )
+                        sleep(5)
+                self.data.clear()
 
 
         self.browser.quit()
@@ -153,35 +160,36 @@ class ChromeDriver:
             try:
                 self.browser.switch_to.frame(self.browser.find_element_by_tag_name("iframe"))
                 hafta = self.browser.find_element_by_xpath("/html/body/div[1]/div[2]/div[2]").text.split(' ')[1]
+                period = self.browser.find_element_by_xpath("/html/body/div[1]/div[5]/div/div[3]").text
+                sure = self.browser.find_element_by_xpath("/html/body/div[1]/div[5]/div/div[4]").text
                 break
             except:
                 pass
         
+        self.browser.switch_to.default_content()
+        print(f"{period} {sure}")
+
         if hafta == "30":
-            while True:
-                is_killed = self._kill.wait(0.05)
-                if is_killed:
-                    sys.exit()
-                try:
-                    period = self.browser.find_element_by_xpath("/html/body/div[1]/div[5]/div/div[3]").text
-                    break
-                except:
-                    pass
-            self.browser.switch_to.default_content()
-            if period == "Devre Arası" or \
-               period == "İkinci Yarı" or \
+            getBool = False
+            if period == "İkinci Yarı":
+                if sure.split(":")[0] == "00":
+                    if int(sure.split(":")[1]) <= 50:
+                        getBool = True
+            if (period == "İkinci Yarı" and getBool == True) or \
                period == "Maç haftası sonu" or \
                period == "Maç sonu":
                 permission = self.get()
+        
         return permission
 
     def get(self):
+        as_ = time()
         self.browser.get(f'https://{self.url}.com/sanalfutbol.php')
         
         is_killed = self._kill.wait(3)
         if is_killed:
             sys.exit()
-
+        
         while True:
             is_killed = self._kill.wait(0.05)
             if is_killed:
@@ -203,150 +211,77 @@ class ChromeDriver:
                 break
             except NoSuchElementException:
                 continue
-
+        
         for j in range(int(hafta), 31):
-            while True:
-                is_killed = self._kill.wait(0.05)
-                if is_killed:
-                    sys.exit()
-                try:
-                    haftabutton = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[3]/div/ul/li[{j}]")
-                    haftabutton.click()
-                    is_killed = self._kill.wait(0.25)
-                    if is_killed:
-                        sys.exit()
-                    break
-                except:
-                    pass
-
-            macListesi = []
-            sayac = 0
-            while True:
-                sayac += 1
-                print(f"sayac: {sayac}")
-                is_killed = self._kill.wait(0.05)
-                if is_killed:
-                    sys.exit()
-                try:
-                    if sayac > 3 and j == 1:
-                        self.browser.refresh()
-                        is_killed = self._kill.wait(2)
-                        if is_killed:
-                            sys.exit()
-                        sayac = 0
-                    macListesi = self.browser.find_elements_by_xpath("/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li")
-                    is_killed = self._kill.wait(0.05)
-                    if is_killed:
-                        sys.exit()
-                    if len(macListesi) == 8:
-                        is_killed = self._kill.wait(0.1)
-                        if is_killed:
-                            sys.exit()
-                        break
-                except:
-                    continue
-
-            while True:
-                try:
-                    btn = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[8]/div[1]/div/a[1]")
-                    btn.click()
-                    is_killed = self._kill.wait(0.75)
-                    if is_killed:
-                        sys.exit()
-                    break
-                except:
-                    pass
-
-            for i in range(1, len(macListesi)):
-                while True:
-                    try:
-                        mac = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]")
-                        self.browser.execute_script("arguments[0].style.display = 'block';", mac)
-                        sleep(0.01)
-                        break
-                    except:
-                        pass
-
+            request_cookies_browser = self.browser.get_cookies()
+            params = {'hid':j, 'oid':'macsonucu'}
+            s = requests.Session()
+            c = [s.cookies.set(c['name'], c['value']) for c in request_cookies_browser]
+            resp = s.post(f"https://{self.url}.com/sbAjaxS.php?a=oranlar&odetay={j}", params)
+            soup = BS(resp.content, 'html.parser')
+            dom = etree.HTML(str(soup))
+            macListesi = dom.xpath('//*[@id="marketContainer"]/li')
             for i in range(1, len(macListesi)+1):
-                ai = 0
-                while True:
-                    ai = ai + 1
-                    print(f"ai: {ai}")
-                    try:
-                        mac_ismi = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[1]")
-                        ms1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[2]/div[1]/a/span")
-                        ms0 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[2]/div[2]/a/span")
-                        ms2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[1]/ul/li/div/div/div[2]/div[3]/a/span")
-                        iy1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[1]/a/span")
-                        iy0 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[2]/a/span")
-                        iy2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[3]/a/span")
-                        altust1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[1]/span")
-                        birust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[2]/div/a/span")
-                        biralt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[2]/li[2]/div/a/span")
-                        ikiust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[1]/li[2]/div/a/span")
-                        ikialt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[2]/li[2]/div/a/span")
-                        ucust = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[1]/li[2]/div/a/span")
-                        ucalt = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[2]/li[2]/div/a/span")
-                        ilk1 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[1]/div[2]/div/a/span")
-                        ilk2 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[2]/div[2]/div/a/span")
-                        ilk0 = self.browser.find_element_by_xpath(f"/html/body/div[7]/div[1]/div[4]/div/span/div/ul/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[3]/div[2]/div/a/span")
+                try:
+                    mac_ismi = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[1]/ul/li/div/div/div[1]')[0].text.strip()
+                    ms1 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[1]/ul/li/div/div/div[2]/div[1]/a/span')[0].text.strip()
+                    ms0 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[1]/ul/li/div/div/div[2]/div[2]/a/span')[0].text.strip()
+                    ms2 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[1]/ul/li/div/div/div[2]/div[3]/a/span')[0].text.strip()
+                    iy1 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[1]/a/span')[0].text.strip()
+                    iy0 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[2]/a/span')[0].text.strip()
+                    iy2 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[2]/ul/li/ul/li/div[2]/div/div[2]/div[3]/a/span')[0].text.strip()
+                    ilk1 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[1]/div[2]/div/a/span')[0].text.strip()
+                    ilk0 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[3]/div[2]/div/a/span')[0].text.strip()
+                    ilk2 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[4]/ul/li/ul/li/div/div[2]/div[2]/div/a/span')[0].text.strip()
+                    altust1 = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[1]/span')[0].text.strip()
+                    birust = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[1]/li[2]/div/a/span')[0].text.strip()
+                    biralt = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[1]/div[2]/li[2]/div/a/span')[0].text.strip()
+                    ikiust = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[1]/li[2]/div/a/span')[0].text.strip()
+                    ikialt = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[2]/div[2]/li[2]/div/a/span')[0].text.strip()
+                    ucust = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[1]/li[2]/div/a/span')[0].text.strip()
+                    ucalt = dom.xpath(f'//*[@id="marketContainer"]/li[{i}]/div[2]/div/ul/li[6]/ul/li/ul/li/div[2]/ul[3]/div[2]/li[2]/div/a/span')[0].text.strip()
+                    ev_sahibi = mac_ismi.split(" ")[1]
+                    deplasman = mac_ismi.split(" ")[-1]
+                    if altust1 == "0.5":
+                        altust05ust = birust
+                        altust05alt = biralt
+                        altust15ust = ikiust
+                        altust15alt = ikialt
+                        altust25ust = ucust
+                        altust25alt = ucalt
+                        altust35ust = ""
+                        altust35alt = ""
+                        altust45ust = ""
+                        altust45alt = ""
                         
-                        break
-                    except NoSuchElementException as e:
-                        print("Hata", e)
-                
-                ev_sahibi = mac_ismi.text.split(" ")[1]
-                deplasman = mac_ismi.text.split(" ")[-1]
-                
-                ms1 = ms1.text
-                ms0 = ms0.text
-                ms2 = ms2.text
-                iy1 = iy1.text
-                iy0 = iy0.text
-                iy2 = iy2.text
-
-                if altust1.text == "0.5":
-                    altust05ust = birust.text
-                    altust05alt = biralt.text
-                    altust15ust = ikiust.text
-                    altust15alt = ikialt.text
-                    altust25ust = ucust.text
-                    altust25alt = ucalt.text
-                    altust35ust = ""
-                    altust35alt = ""
-                    altust45ust = ""
-                    altust45alt = ""
-                    
-                if altust1.text == "1.5":
-                    altust05ust = ""
-                    altust05alt = ""
-                    altust15ust = birust.text
-                    altust15alt = biralt.text
-                    altust25ust = ikiust.text
-                    altust25alt = ikialt.text
-                    altust35ust = ucust.text
-                    altust35alt = ucalt.text
-                    altust45ust = ""
-                    altust45alt = ""
-                    
-                if altust1.text == "2.5":
-                    altust05ust = ""
-                    altust05alt = ""
-                    altust15ust = ""
-                    altust15alt = ""
-                    altust25ust = birust.text
-                    altust25alt = biralt.text
-                    altust35ust = ikiust.text
-                    altust35alt = ikialt.text
-                    altust45ust = ucust.text
-                    altust45alt = ucalt.text
-                
-                ilk0 = ilk0.text
-                ilk1 = ilk1.text
-                ilk2 = ilk2.text
+                    if altust1 == "1.5":
+                        altust05ust = ""
+                        altust05alt = ""
+                        altust15ust = birust
+                        altust15alt = biralt
+                        altust25ust = ikiust
+                        altust25alt = ikialt
+                        altust35ust = ucust
+                        altust35alt = ucalt
+                        altust45ust = ""
+                        altust45alt = ""
+                        
+                    if altust1 == "2.5":
+                        altust05ust = ""
+                        altust05alt = ""
+                        altust15ust = ""
+                        altust15alt = ""
+                        altust25ust = birust
+                        altust25alt = biralt
+                        altust35ust = ikiust
+                        altust35alt = ikialt
+                        altust45ust = ucust
+                        altust45alt = ucalt
+                except:
+                    pass
 
                 self.data.append([f"{i}.Maç",j,sezon,ev_sahibi,deplasman,ms1,ms0,ms2,iy1,iy0,iy2,altust05ust,altust05alt,altust15ust,altust15alt,altust25ust,altust25alt,altust35ust,altust35alt,altust45ust,altust45alt,ilk1,ilk2,ilk0])
-
+        print(time()-as_)
         return True
 
     def start(self):

@@ -10,11 +10,6 @@ import images_rc
 
 from Driver import ChromeDriver
 
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import NoSuchElementException
-
 import webbrowser
 
 class VirtualFootball(QMainWindow):
@@ -139,8 +134,10 @@ class VirtualFootball(QMainWindow):
     def Stop(self):
         self.timerCheckErrors.stop()
         self.timerCheckKeyboard.stop()
-        if self.Driver.alive():
+        try:
             self.Driver.stop()
+        except:
+            pass
         
     def closeEvent(self, event):
         if self.AboutMePage.isVisible():
