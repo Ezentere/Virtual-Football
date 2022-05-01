@@ -42,6 +42,11 @@ class VirtualFootball(QMainWindow):
         self.AboutMePage.show()
 
     def Load(self):
+        with open("log.txt", "a") as file:
+            file.seek(0)
+            file.truncate()
+            file.write("")
+
         self.ui.le_URL.setText("")
         self.ui.le_Username.setText("")
         self.ui.le_Password.setText("")
@@ -57,6 +62,8 @@ class VirtualFootball(QMainWindow):
                     self.ui.le_Username.setText(self.JsonLayout["Settings"]["Username"])
                 if "Password" in self.JsonLayout["Settings"]:
                     self.ui.le_Password.setText(self.JsonLayout["Settings"]["Password"])
+                if "Path" in self.JsonLayout["Settings"]:
+                    self.ui.le_Path.setText(self.JsonLayout["Settings"]["Path"])
 
     def Save(self):
         self.JsonLayout.clear()
@@ -70,8 +77,11 @@ class VirtualFootball(QMainWindow):
         if self.ui.le_Username.text() != "":
             Username = self.ui.le_Username.text()
             self.JsonLayout["Settings"]["Username"] = Username
+        if self.ui.le_Path.text() != "":
+            Path = self.ui.le_Path.text()
+            self.JsonLayout["Settings"]["Path"] = Path
         with open(self.SaveDir, "w") as json_data:
-            json.dump(self.JsonLayout, json_data)
+            json.dump(self.JsonLayout, json_data, indent=4)
 
     def ActionButton(self):
         button_action = QAction("Hakkımda", self)
@@ -81,7 +91,9 @@ class VirtualFootball(QMainWindow):
         self.ui.le_URL.textChanged.connect(self.Save)
         self.ui.le_Username.textChanged.connect(self.Save)
         self.ui.le_Password.textChanged.connect(self.Save)
+        self.ui.le_Path.textChanged.connect(self.Save)
         self.ui.pb_Start.clicked.connect(self.Start)
+        self.ui.tb_getPath.clicked.connect(self.getPath)
 
         self.Abui.label.mousePressEvent = self.goLink
 
@@ -112,16 +124,20 @@ class VirtualFootball(QMainWindow):
             self.show()
             self.Stop()
 
+    def getPath(self):
+        self.ui.le_Path.setText(QFileDialog.getExistingDirectory(self, "Select Directory"))
+
     def Start(self):
         self.Save()
         url = self.ui.le_URL.text()
         username = self.ui.le_Username.text()
         password = self.ui.le_Password.text()
+        path = self.ui.le_Path.text()
         if url != "" and username != "" and password != "":
             if url.find("/") == -1 and url.find(".") == -1:
                 retval = self.CreateMessageBox("Bot çalışmaya başlıyor...\nDevam etmek istiyor musunuz?\nBotu durdurmak için 'ctrl+shift+q' kombinasyonunu kullanınız...")
                 if retval == QMessageBox.Ok:
-                    self.Driver = ChromeDriver(url, username, password)
+                    self.Driver = ChromeDriver(url, username, password, path)
                     self.Driver.start()
                     self.timerCheckErrors.start(100)
                     self.timerCheckKeyboard.start(10)

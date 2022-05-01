@@ -5,7 +5,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException, NoAlertPresentException
 from selenium.webdriver.chrome.service import Service as ChromeService
 from subprocess import CREATE_NO_WINDOW
-import schedule, os, sys
+import os, sys
 import pandas as pd
 from win10toast import ToastNotifier
 from bs4 import BeautifulSoup as BS
@@ -24,18 +24,21 @@ class ChromeDriver:
     url = ""
     username = ""
     password = ""
+    path = ""
     errorMessageState = False
     errorMessage = ""
     data = []
     firstStart = True
+    botStatus = False
 
-    def __init__(self, url, username, password):
+    def __init__(self, url, username, password, path):
         self.lock = Lock()
         self._kill = Event()
         self.toast = ToastNotifier()
         self.url = url
         self.username = username
         self.password = password
+        self.path = path
         self.browserProfile = webdriver.ChromeOptions()
         self.browserProfile.add_experimental_option('prefs', {'intl.accept_languages':'en,en_US'})
         self.browserProfile.add_argument('--window-size=1920,1080')
@@ -43,8 +46,6 @@ class ChromeDriver:
         self.browserProfile.add_argument("--headless") 
         self.chrome_service = ChromeService('chromedriver')
         self.chrome_service.creationflags = CREATE_NO_WINDOW
-
-        schedule.every(30).seconds.do(self.bot)
 
     def resetSelfs(self):
         self.lock.acquire()
@@ -98,7 +99,8 @@ class ChromeDriver:
         is_killed = self._kill.wait(0.025)
         if is_killed:
             sys.exit()
-        
+        permission = False
+
         while True:
             loginError = self.login()
             if loginError == "errorPass":
@@ -111,76 +113,75 @@ class ChromeDriver:
                 break
 
         if loginError == "notError":
-            permission = False
-            if self.firstStart:
-                permission = self.get()
-            else:
-                permission = self.checkGet()
-            
-            if permission:
-                df = pd.DataFrame(self.data, columns=["Lig","Hafta","Sezon","Ev Sahibi","Misafir","1","X","2","IY 1","IY 0","IY 2","0,5 ALT","0,5 ALT","1,5 ÜST","1,5 ALT","2,5 ÜST","2,5 ALT","3,5 ÜST","3,5 ALT","4,5 ÜST","4,5 ALT","İLK-1","İLK-2","İLK HİÇBİRİ"])
-                print(df)
-                desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
-                while True:
-                    try: 
-                        df.to_excel(f"{desktop}/sanalfutbol.xlsx", sheet_name='SANAL', encoding='utf-8', index=False)
-                        self.toast.show_toast(
-                            "Virtual Football",
-                            "Excel dosyası desktop'a kopyalandı.",
-                            duration = 45,
-                            icon_path = "images/favicon.ico",
-                            threaded = True,
-                        )
-                        break
-                    except PermissionError:
-                        self.toast.show_toast(
-                            "Virtual Football",
-                            "Excel dosyası açtık durumda olduğu için işlem gerçekleştirilemedi.\nLütfen excel dosyasını kapatınız.",
-                            duration = 30,
-                            icon_path = "images/favicon.ico",
-                            threaded = True,
-                        )
-                        sleep(5)
-                self.data.clear()
-
+            permission = self.get()
 
         self.browser.quit()
 
+        if permission:
+            df = pd.DataFrame(self.data, columns=["Lig","Hafta","Sezon","Ev Sahibi","Misafir","1","X","2","IY 1","IY 0","IY 2","0,5 ALT","0,5 ALT","1,5 ÜST","1,5 ALT","2,5 ÜST","2,5 ALT","3,5 ÜST","3,5 ALT","4,5 ÜST","4,5 ALT","İLK-1","İLK-2","İLK HİÇBİRİ"])
+            print(df)
+            if self.path == "":
+                desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
+            else:
+                desktop = self.path
+            while True:
+                try: 
+                    df.to_excel(f"{desktop}/{self.data[0][2]}_Oranlar.xlsx", sheet_name='SANAL', encoding='utf-8', index=False)
+                    self.toast.show_toast(
+                        "Virtual Football",
+                        "Excel dosyası desktop'a kopyalandı.",
+                        duration = 45,
+                        icon_path = "images/favicon.ico",
+                        threaded = True,
+                    )
+                    break
+                except PermissionError:
+                    self.toast.show_toast(
+                        "Virtual Football",
+                        "Excel dosyası açtık durumda olduğu için işlem gerçekleştirilemedi.\nLütfen excel dosyasını kapatınız.",
+                        duration = 30,
+                        icon_path = "images/favicon.ico",
+                        threaded = True,
+                    )
+                    sleep(5)
+            self.data.clear()
+        self.botStatus = False
+
     def checkGet(self):
-        permission = False
-        self.browser.get(f'https://{self.url}.com/sanalfutbol.php')
+        self.browser = webdriver.Chrome("chromedriver.exe", chrome_options=self.browserProfile, service=self.chrome_service)
+        is_killed = self._kill.wait(0.025)
+        if is_killed:
+            sys.exit()
+        self.browser.get('https://rgs.betradar.com/vflyouwinrgs/vleague.php?clientid=594&lang=tr&style=newbetboo')
         is_killed = self._kill.wait(3)
         if is_killed:
             sys.exit()
-        
+        i = 0
         while True:
             is_killed = self._kill.wait(0.05)
             if is_killed:
                 sys.exit()
             try:
-                self.browser.switch_to.frame(self.browser.find_element_by_tag_name("iframe"))
-                hafta = self.browser.find_element_by_xpath("/html/body/div[1]/div[2]/div[2]").text.split(' ')[1]
-                period = self.browser.find_element_by_xpath("/html/body/div[1]/div[5]/div/div[3]").text
-                sure = self.browser.find_element_by_xpath("/html/body/div[1]/div[5]/div/div[4]").text
+                sezon = self.browser.find_element_by_xpath('//*[@id="tab_season"]').text.split(" ")[1]
+                hafta = self.browser.find_element_by_xpath('//*[@id="tab_matchday"]').text.split(' ')[1]
+                period = self.browser.find_element_by_xpath('//*[@id="period"]').text
                 break
-            except:
-                pass
+            except Exception as e:
+                print(e)
+                if i == 5:
+                    with open("log.txt", "a") as file:
+                        file.write(f"\n\n\n{e}\n\n\n")
+                    break
+                i += 1
         
-        self.browser.switch_to.default_content()
-        print(f"{period} {sure}")
+        print(f"{sezon}-{hafta}: {period}")
+        with open("log.txt", "a") as file:
+            file.write(f"{sezon}-{hafta}: {period}\n")
 
-        if hafta == "30":
-            getBool = False
-            if period == "İkinci Yarı":
-                if sure.split(":")[0] == "00":
-                    if int(sure.split(":")[1]) <= 50:
-                        getBool = True
-            if (period == "İkinci Yarı" and getBool == True) or \
-               period == "Maç haftası sonu" or \
-               period == "Maç sonu":
-                permission = self.get()
+        if period == "Sezon başı":
+            self.botStatus = True
         
-        return permission
+        self.browser.quit()
 
     def get(self):
         as_ = time()
@@ -281,7 +282,10 @@ class ChromeDriver:
                     pass
 
                 self.data.append([f"{i}.Maç",j,sezon,ev_sahibi,deplasman,ms1,ms0,ms2,iy1,iy0,iy2,altust05ust,altust05alt,altust15ust,altust15alt,altust25ust,altust25alt,altust35ust,altust35alt,altust45ust,altust45alt,ilk1,ilk2,ilk0])
-        print(time()-as_)
+
+        print(f"{sezon}-{hafta} oranları {time()-as_} saniye içinde yazıldı.")
+        with open("log.txt", "a") as file:
+            file.write(f"{sezon}-{hafta} oranları {time()-as_} saniye içinde yazıldı.\n")
         return True
 
     def start(self):
@@ -308,10 +312,14 @@ class ChromeDriver:
                 print(time()-sa)
                 self.firstStart = False
             else:
-                schedule.run_pending()
-                is_killed = self._kill.wait(1)
-                if is_killed:
-                    sys.exit()
+                if self.botStatus:
+                    self.bot()
+                else:
+                    self.checkGet()
+                
+            is_killed = self._kill.wait(2)
+            if is_killed:
+                sys.exit()
         try:
             if self.stopped:
                 self.browser.quit()
