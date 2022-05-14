@@ -5,7 +5,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException, NoAlertPresentException
 from selenium.webdriver.chrome.service import Service as ChromeService
 from subprocess import CREATE_NO_WINDOW
-import os, sys
+import os, sys, json
 import pandas as pd
 from win10toast import ToastNotifier
 from bs4 import BeautifulSoup as BS
@@ -13,6 +13,8 @@ from lxml import etree
 import requests
 
 class ChromeDriver:
+
+    DEBUG = False
 
     stopped = True
     lock = None
@@ -30,6 +32,7 @@ class ChromeDriver:
     data = []
     firstStart = True
     botStatus = False
+    period_count = 0
 
     def __init__(self, url, username, password, path):
         self.lock = Lock()
@@ -40,12 +43,13 @@ class ChromeDriver:
         self.password = password
         self.path = path
         self.browserProfile = webdriver.ChromeOptions()
-        self.browserProfile.add_experimental_option('prefs', {'intl.accept_languages':'en,en_US'})
+        self.browserProfile.add_experimental_option('prefs', {'intl.accept_languages':'tr,tr_TR'})
         self.browserProfile.add_argument('--window-size=1920,1080')
         self.browserProfile.add_argument('--log-level=2')
         self.browserProfile.add_argument("--headless") 
         self.chrome_service = ChromeService('chromedriver')
         self.chrome_service.creationflags = CREATE_NO_WINDOW
+        self.starttime = time()
 
     def resetSelfs(self):
         self.lock.acquire()
@@ -53,6 +57,7 @@ class ChromeDriver:
         self.lock.release()
 
     def login(self):
+        print("Login")
         self.browser.get(f'https://{self.url}.com')
         is_killed = self._kill.wait(0.075)
         if is_killed:
@@ -92,9 +97,12 @@ class ChromeDriver:
         except NoAlertPresentException:
             elementExist = "notError"
 
+        print("Login Done")
         return elementExist
+        
 
     def bot(self):
+        print("Bot Started")
         self.browser = webdriver.Chrome("chromedriver.exe", chrome_options=self.browserProfile, service=self.chrome_service)
         is_killed = self._kill.wait(0.025)
         if is_killed:
@@ -146,62 +154,117 @@ class ChromeDriver:
                     sleep(5)
             self.data.clear()
         self.botStatus = False
+        print("Bot done")
 
     def checkGet(self):
+        print("Checking...")
         self.browser = webdriver.Chrome("chromedriver.exe", chrome_options=self.browserProfile, service=self.chrome_service)
         is_killed = self._kill.wait(0.025)
         if is_killed:
             sys.exit()
-        self.browser.get('https://rgs.betradar.com/vflyouwinrgs/vleague.php?clientid=594&lang=tr&style=newbetboo')
-        is_killed = self._kill.wait(3)
-        if is_killed:
-            sys.exit()
-        i = 0
         while True:
-            is_killed = self._kill.wait(0.05)
-            if is_killed:
-                sys.exit()
-            try:
-                sezon = self.browser.find_element_by_xpath('//*[@id="tab_season"]').text.split(" ")[1]
-                hafta = self.browser.find_element_by_xpath('//*[@id="tab_matchday"]').text.split(' ')[1]
-                period = self.browser.find_element_by_xpath('//*[@id="period"]').text
+            loginError = self.login()
+            if loginError == "errorPass":
+                self.browser.quit()
+                self.lock.acquire()
+                self.errorMessageState = True
+                self.errorMessage = "Kullanıcı adı veya şifre hatalı..."
+                self.lock.release()
+            else:
                 break
-            except Exception as e:
-                print(e)
-                if i == 5:
-                    with open("log.txt", "a") as file:
-                        file.write(f"\n\n\n{e}\n\n\n")
-                    break
-                i += 1
-        
-        print(f"{sezon}-{hafta}: {period}")
-        with open("log.txt", "a") as file:
-            file.write(f"{sezon}-{hafta}: {period}\n")
 
-        if period == "Sezon başı":
-            self.botStatus = True
-        
-        self.browser.quit()
+        if loginError == "notError":
+            if self.DEBUG:
+                self.browser.get(f'view-source:https://{self.url}.com/sanalfutbol.php')
+                is_killed = self._kill.wait(1)
+                if is_killed:
+                    sys.exit()
+
+                sanalvideo = self.browser.find_elements_by_class_name('html-attribute-value.html-resource-link')
+                for item in sanalvideo:
+                    if item.text.find("=superbahis") != -1:
+                        self.browser.execute_script("arguments[0].target = '';", item)
+                        item.click()
+                        break
+                is_killed = self._kill.wait(3)
+                if is_killed:
+                    sys.exit()
+                i = 0
+                while True:
+                    is_killed = self._kill.wait(0.05)
+                    if is_killed:
+                        sys.exit()
+                    try:
+                        sezon = self.browser.find_element_by_xpath('//*[@id="tab_season"]').text.split(" ")[1]
+                        hafta = self.browser.find_element_by_xpath('//*[@id="tab_matchday"]').text.split(' ')[1]
+                        period = self.browser.find_element_by_xpath('//*[@id="period"]').text
+                        break
+                    except Exception as e:
+                        print(e)
+                        if i == 5:
+                            with open("log.txt", "a") as file:
+                                file.write(f"\n\n\n{e}\n\n\n")
+                            break
+                        i += 1
+            else:
+                request_cookies_browser = self.browser.get_cookies()
+                s = requests.Session()
+                c = [s.cookies.set(c['name'], c['value']) for c in request_cookies_browser]
+                resp = s.post(f"https://{self.url}.com/sbAjaxS.php?a=haftabilgi")
+                soup = BS(resp.content, 'html.parser')
+                json_object = json.loads(soup.prettify())
+                print(f"{int(time() - self.starttime)} - {json_object}")
+                with open("log.txt", "a") as file:
+                    file.write(f"{int(time() - self.starttime)} - {json_object}\n")
+                sezon = json_object['sezon'].split(' ')[0]
+                hafta = json_object['gun']
+                if "period" in json_object:
+                    period = json_object['period']
+                    self.period_count = 0
+                else:
+                    period = ""
+                    self.period_count = self.period_count + 1
+                    print(self.period_count)
+            
+            print(f"{int(time() - self.starttime)} - {sezon}/{hafta}: {period}")
+            with open("log.txt", "a") as file:
+                file.write(f"{int(time() - self.starttime)} - {sezon}/{hafta}: {period}\n")
+
+            if period == "pre_season_period" or self.period_count >= 31:
+                self.botStatus = True
+                self.period_count = 0
+            
+            self.browser.quit()
+            print("Check Done")
 
     def get(self):
+        print("Getting...")
         as_ = time()
         self.browser.get(f'https://{self.url}.com/sanalfutbol.php')
-        
         is_killed = self._kill.wait(3)
         if is_killed:
             sys.exit()
         
-        while True:
-            is_killed = self._kill.wait(0.05)
-            if is_killed:
-                sys.exit()
-            try:
-                self.browser.switch_to.frame(self.browser.find_element_by_tag_name("iframe"))
-                sezon = self.browser.find_element_by_xpath("html/body/div[1]/div[2]/div[1]").text.split(' ')[1]
-                self.browser.switch_to.default_content()
-                break
-            except NoSuchElementException:
-                continue
+        if self.DEBUG:
+            while True:
+                is_killed = self._kill.wait(0.05)
+                if is_killed:
+                    sys.exit()
+                try:
+                    self.browser.switch_to.frame(self.browser.find_element_by_tag_name("iframe"))
+                    sezon = self.browser.find_element_by_xpath("html/body/div[1]/div[2]/div[1]").text.split(' ')[1]
+                    self.browser.switch_to.default_content()
+                    break
+                except NoSuchElementException:
+                    continue
+        else:
+            request_cookies_browser = self.browser.get_cookies()
+            s = requests.Session()
+            c = [s.cookies.set(c['name'], c['value']) for c in request_cookies_browser]
+            resp = s.post(f"https://{self.url}.com/sbAjaxS.php?a=haftabilgi")
+            soup = BS(resp.content, 'html.parser')
+            json_object = json.loads(soup.prettify())
+            sezon = json_object['sezon'].split(' ')[0]
 
         while True:
             is_killed = self._kill.wait(0.05)
@@ -283,9 +346,9 @@ class ChromeDriver:
 
                 self.data.append([f"{i}.Maç",j,sezon,ev_sahibi,deplasman,ms1,ms0,ms2,iy1,iy0,iy2,altust05ust,altust05alt,altust15ust,altust15alt,altust25ust,altust25alt,altust35ust,altust35alt,altust45ust,altust45alt,ilk1,ilk2,ilk0])
 
-        print(f"{sezon}-{hafta} oranları {time()-as_} saniye içinde yazıldı.")
+        print(f"{int(time() - self.starttime)} - {sezon}/{hafta} oranları {int(time()-as_)} saniye içinde yazıldı.")
         with open("log.txt", "a") as file:
-            file.write(f"{sezon}-{hafta} oranları {time()-as_} saniye içinde yazıldı.\n")
+            file.write(f"{int(time() - self.starttime)} - {sezon}/{hafta} oranları {int(time()-as_)} saniye içinde yazıldı.\n")
         return True
 
     def start(self):

@@ -163,11 +163,11 @@ class VirtualFootball(QMainWindow):
 def main():
 
 	### BURADA __pycache__ klasörü temizleniyor.
-	path = './'
-	for directories, subfolder, files in os.walk(path):
-		if os.path.isdir(directories):
-			if directories[::-1][:11][::-1] == '__pycache__':
-							shutil.rmtree(directories)
+	# path = './'
+	# for directories, subfolder, files in os.walk(path):
+	# 	if os.path.isdir(directories):
+	# 		if directories[::-1][:11][::-1] == '__pycache__':
+	# 						shutil.rmtree(directories)
 
 	app = QApplication([])
 	app.setStyle("Vista")
